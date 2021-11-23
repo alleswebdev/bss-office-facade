@@ -1,0 +1,8 @@
+.idea/
+.cache
+.venv
+swagger/
+bin/
+data/
+main
+cover.out
