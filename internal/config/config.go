@@ -1,11 +1,9 @@
 package config
 
 import (
+	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
-	"time"
-
-	"gopkg.in/yaml.v3"
 )
 
 // Build information -ldflags .
@@ -35,21 +33,6 @@ type Database struct {
 	Name       string `yaml:"name"`
 	SslMode    string `yaml:"sslmode"`
 	Driver     string `yaml:"driver"`
-}
-
-// Grpc - contains parameter address grpc.
-type Grpc struct {
-	Port              int    `yaml:"port"`
-	MaxConnectionIdle int64  `yaml:"maxConnectionIdle"`
-	Timeout           int64  `yaml:"timeout"`
-	MaxConnectionAge  int64  `yaml:"maxConnectionAge"`
-	Host              string `yaml:"host"`
-}
-
-// Rest - contains parameter rest json connection.
-type Rest struct {
-	Port int    `yaml:"port"`
-	Host string `yaml:"host"`
 }
 
 // Project - contains all parameters project information.
@@ -99,32 +82,15 @@ type Telemetry struct {
 	GraylogPath string `yaml:"graylogPath"`
 }
 
-// Retranslator config for retranslator
-type Retranslator struct {
-	ChannelSize uint64
-
-	ConsumerCount  int
-	ConsumeSize    uint64
-	ConsumeTimeout time.Duration
-
-	ProducerCount     int
-	ProducerTimeout   time.Duration
-	ProducerBatchSize int
-	WorkerCount       int
-}
-
 // Config - contains all configuration parameters in config package.
 type Config struct {
-	Project      Project      `yaml:"project"`
-	Grpc         Grpc         `yaml:"grpc"`
-	Rest         Rest         `yaml:"rest"`
-	Database     Database     `yaml:"database"`
-	Metrics      Metrics      `yaml:"metrics"`
-	Jaeger       Jaeger       `yaml:"jaeger"`
-	Kafka        Kafka        `yaml:"kafka"`
-	Status       Status       `yaml:"status"`
-	Telemetry    Telemetry    `yaml:"telemetry"`
-	Retranslator Retranslator `yaml:"retranslator"`
+	Project   Project   `yaml:"project"`
+	Database  Database  `yaml:"database"`
+	Metrics   Metrics   `yaml:"metrics"`
+	Jaeger    Jaeger    `yaml:"jaeger"`
+	Kafka     Kafka     `yaml:"kafka"`
+	Status    Status    `yaml:"status"`
+	Telemetry Telemetry `yaml:"telemetry"`
 }
 
 // ReadConfigYML - read configurations from file and init instance Config.

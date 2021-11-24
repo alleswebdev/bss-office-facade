@@ -62,7 +62,7 @@ func main() {
 	defer tracing.Close()
 
 	if err = server.NewConsumerServer(db).Start(ctx, &cfg); err != nil {
-		logger.FatalKV(ctx, "Failed creating gRPC server", "err", err)
+		logger.FatalKV(ctx, "Failed creating consumer server", "err", err)
 
 		return
 	}

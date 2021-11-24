@@ -23,7 +23,7 @@ func InitMetrics(cfg *config.Config) {
 		Namespace: cfg.Metrics.Namespace,
 		Subsystem: cfg.Metrics.Subsystem,
 		Name:      "processed_cud_total",
-		Help:      "Total of the CUD events",
+		Help:      "Total of events by type",
 	}, []string{"type"})
 }
 
@@ -36,7 +36,7 @@ func IncTotalEvents() {
 	totalEvents.Inc()
 }
 
-// IncTotalCud - увеличивает значение счетчика событий
+// IncTotalCud - увеличивает значение счетчика событий конкретного типа
 func IncTotalCud(eventType model.EventType) {
 	if totalCud == nil {
 		return

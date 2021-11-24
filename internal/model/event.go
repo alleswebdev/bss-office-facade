@@ -9,9 +9,6 @@ import (
 // EventType  тип события
 type EventType string
 
-// EventStatus enum for event status
-type EventStatus uint8
-
 // Created - событие создано
 // Updated - событие обновлено
 // Removed - событие удалено
@@ -26,7 +23,7 @@ type OfficeEvent struct {
 	ID       uint64        `db:"id"`
 	OfficeID uint64        `db:"office_id"`
 	Type     EventType     `db:"type"`
-	Status   EventStatus   `db:"status"`
+	Status   uint64        `db:"status"`
 	Created  time.Time     `db:"created_at"`
 	Updated  sql.NullTime  `db:"updated_at"`
 	Payload  OfficePayload `db:"payload"`
@@ -45,7 +42,7 @@ func ConvertPbToBssOfficeEvent(pb *pb.OfficeEvent) *OfficeEvent {
 	officeEvent := &OfficeEvent{
 		ID:       pb.GetId(),
 		OfficeID: pb.GetOfficeId(),
-		Status:   EventStatus(pb.GetStatus()),
+		Status:   pb.GetStatus(),
 		Type:     EventType(pb.GetType()),
 		Created:  pb.GetCreated().AsTime(),
 		Updated: sql.NullTime{

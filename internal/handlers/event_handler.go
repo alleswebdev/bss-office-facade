@@ -36,6 +36,7 @@ func (h *eventHandler) Handle(ctx context.Context, message *sarama.ConsumerMessa
 	//fmt.Printf("%#+v\n", officeEvent)
 
 	metrics.IncTotalEvents()
+	metrics.IncTotalCud(officeEvent.Type)
 
 	if officeEvent.Payload.ID == 0 {
 		return errors.Wrap(err, "EventHandler.Handle : officeID is nul")
@@ -47,19 +48,17 @@ func (h *eventHandler) Handle(ctx context.Context, message *sarama.ConsumerMessa
 		if err != nil {
 			return err
 		}
-		metrics.IncTotalCud(model.Created)
 	case model.Updated:
 		_, err := h.repo.UpdateOffice(ctx, officeEvent.Payload.ID, officeEvent.Payload)
 		if err != nil {
 			return err
 		}
-		metrics.IncTotalCud(model.Updated)
 	case model.Removed:
 		_, err := h.repo.RemoveOffice(ctx, officeEvent.Payload.ID)
 		if err != nil {
 			return err
 		}
-		metrics.IncTotalCud(model.Removed)
 	}
+
 	return nil
 }
