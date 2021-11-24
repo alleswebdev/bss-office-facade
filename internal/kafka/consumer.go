@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/Shopify/sarama"
+	"github.com/ozonmp/bss-office-facade/internal/logger"
 )
 
 type consumeFunction func(ctx context.Context, message *sarama.ConsumerMessage) error
@@ -25,7 +26,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 		err := consumer.fn(session.Context(), message)
 
 		if err != nil {
-			return err
+			logger.ErrorKV(session.Context(), "cannot handle msg", "err", err, "msg", message)
 		}
 
 		session.MarkMessage(message, "")
@@ -34,6 +35,7 @@ func (consumer *consumer) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 	return nil
 }
 
+// StartConsuming запускает консюмера
 func StartConsuming(ctx context.Context, brokers []string, topic string, group string, consumeFunction consumeFunction) error {
 
 	config := sarama.NewConfig()
@@ -47,13 +49,13 @@ func StartConsuming(ctx context.Context, brokers []string, topic string, group s
 		return err
 	}
 
-	consumer := consumer{
+	c := consumer{
 		fn: consumeFunction,
 	}
 
 	go func() {
 		for {
-			if err := consumerGroup.Consume(ctx, []string{topic}, &consumer); err != nil {
+			if err := consumerGroup.Consume(ctx, []string{topic}, &c); err != nil {
 				fmt.Printf("Error from consumer: %v", err)
 			}
 			if ctx.Err() != nil {

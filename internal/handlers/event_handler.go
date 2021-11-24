@@ -2,9 +2,9 @@ package handlers
 
 import (
 	"context"
-	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/golang/protobuf/proto"
+	"github.com/ozonmp/bss-office-facade/internal/metrics"
 	"github.com/ozonmp/bss-office-facade/internal/model"
 	"github.com/ozonmp/bss-office-facade/internal/repo"
 	pb "github.com/ozonmp/bss-office-facade/pkg/bss-office-facade"
@@ -31,7 +31,11 @@ func (h *eventHandler) Handle(ctx context.Context, message *sarama.ConsumerMessa
 	}
 
 	officeEvent := model.ConvertPbToBssOfficeEvent(&pbEvent)
-	fmt.Printf("%#+v\n", officeEvent)
+
+	// в задании требовалось вывести в stdout
+	//fmt.Printf("%#+v\n", officeEvent)
+
+	metrics.IncTotalEvents()
 
 	if officeEvent.Payload.ID == 0 {
 		return errors.Wrap(err, "EventHandler.Handle : officeID is nul")
@@ -43,16 +47,19 @@ func (h *eventHandler) Handle(ctx context.Context, message *sarama.ConsumerMessa
 		if err != nil {
 			return err
 		}
+		metrics.IncTotalCud(model.Created)
 	case model.Updated:
 		_, err := h.repo.UpdateOffice(ctx, officeEvent.Payload.ID, officeEvent.Payload)
 		if err != nil {
 			return err
 		}
+		metrics.IncTotalCud(model.Updated)
 	case model.Removed:
 		_, err := h.repo.RemoveOffice(ctx, officeEvent.Payload.ID)
 		if err != nil {
 			return err
 		}
+		metrics.IncTotalCud(model.Removed)
 	}
 	return nil
 }

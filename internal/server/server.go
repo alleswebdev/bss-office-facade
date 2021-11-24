@@ -4,16 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/Shopify/sarama"
-	"github.com/golang/protobuf/proto"
 	"github.com/jmoiron/sqlx"
 	"github.com/ozonmp/bss-office-facade/internal/config"
 	"github.com/ozonmp/bss-office-facade/internal/handlers"
 	"github.com/ozonmp/bss-office-facade/internal/kafka"
 	"github.com/ozonmp/bss-office-facade/internal/logger"
-	"github.com/ozonmp/bss-office-facade/internal/model"
 	"github.com/ozonmp/bss-office-facade/internal/repo"
-	pb "github.com/ozonmp/bss-office-facade/pkg/bss-office-facade"
 	"net/http"
 	"os"
 	"os/signal"
@@ -95,19 +91,6 @@ func (s *ConsumerServer) Start(ctx context.Context, cfg *config.Config) error {
 	} else {
 		logger.InfoKV(ctx, "metricsServer shut down correctly")
 	}
-
-	return nil
-}
-
-func handleEvent(ctx context.Context, message *sarama.ConsumerMessage) error {
-	var pbEvent pb.OfficeEvent
-	err := proto.Unmarshal(message.Value, &pbEvent)
-
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("%#+v\n", model.ConvertPbToBssOfficeEvent(&pbEvent))
 
 	return nil
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// EventType  тип события
 type EventType string
 
 // EventStatus enum for event status
@@ -39,6 +40,7 @@ type OfficePayload struct {
 	Removed     bool   `json:"removed,omitempty"`
 }
 
+// ConvertPbToBssOfficeEvent - конвертирует сообщение protobuf в модель OfficeEvent
 func ConvertPbToBssOfficeEvent(pb *pb.OfficeEvent) *OfficeEvent {
 	officeEvent := &OfficeEvent{
 		ID:       pb.GetId(),
@@ -55,6 +57,7 @@ func ConvertPbToBssOfficeEvent(pb *pb.OfficeEvent) *OfficeEvent {
 	return officeEvent
 }
 
+// ConvertPbToBssOfficePayload - конвертирует сообщение protobuf в модель OfficePayload
 func ConvertPbToBssOfficePayload(pb *pb.OfficePayload) OfficePayload {
 	payload := OfficePayload{
 		ID:          pb.GetId(),
