@@ -48,7 +48,7 @@ func Test_repo_CreateOffice(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"id"}).AddRow(1)
 
 	f.dbMock.ExpectQuery(`INSERT INTO offices (.+) VALUES (.+) RETURNING id`).
-		WithArgs(testOffice.Name, testOffice.Description).
+		WithArgs(testOffice.ID, testOffice.Name, testOffice.Description).
 		WillReturnRows(rows)
 
 	resultID, err := f.officeRepo.CreateOffice(context.Background(), testOffice)

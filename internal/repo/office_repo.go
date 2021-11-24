@@ -47,8 +47,8 @@ func (r *repo) CreateOffice(ctx context.Context, office model.OfficePayload) (ui
 
 	sb := database.StatementBuilder.
 		Insert(officesTableName).
-		Columns(officeNameColumn, officeDescriptionColumn).
-		Values(office.Name, office.Description).
+		Columns(officeIDColumn, officeNameColumn, officeDescriptionColumn).
+		Values(office.ID, office.Name, office.Description).
 		Suffix("RETURNING " + officeIDColumn)
 
 	query, args, err := sb.ToSql()
