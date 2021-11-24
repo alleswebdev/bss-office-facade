@@ -16,7 +16,7 @@ OS_ARCH=$(shell uname -m)
 GO_BIN=$(shell go env GOPATH)/bin
 BUF_EXE=$(GO_BIN)/buf$(shell go env GOEXE)
 
-PG_DSN="user=docker password=docker host=localhost port=5432 database=bss_office_facade sslmode=disable"
+PG_DSN="user=docker password=docker host=localhost port=5433 database=bss_office_facade sslmode=disable"
 
 ifeq ("NT", "$(findstring NT,$(OS_NAME))")
 OS_NAME=Windows
@@ -24,7 +24,7 @@ endif
 
 .PHONY: run
 run:
-	go run cmd/grpc-server/main.go
+	go run cmd/bss-office-facade/main.go
 
 .PHONY: lint
 lint:
@@ -95,7 +95,7 @@ build-go: generate-go .build
 			-X 'github.com/$(SERVICE_PATH)/internal/config.version=$(VERSION)' \
 			-X 'github.com/$(SERVICE_PATH)/internal/config.commitHash=$(COMMIT_HASH)' \
 		" \
-		-o ./bin/grpc-server$(shell go env GOEXE) ./cmd/grpc-server/main.go
+		-o ./bin/bss-office-facade$(shell go env GOEXE) ./cmd/bss-office-facade/main.go
 
 
 .PHONY: goose-up

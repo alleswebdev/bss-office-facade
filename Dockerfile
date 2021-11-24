@@ -15,14 +15,14 @@ LABEL org.opencontainers.image.source https://${GITHUB_PATH}
 RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 
-COPY --from=builder /home/${GITHUB_PATH}/bin/grpc-server .
+COPY --from=builder /home/${GITHUB_PATH}/bin/bss-office-facade .
 COPY --from=builder /home/${GITHUB_PATH}/config.yml .
 COPY --from=builder /home/${GITHUB_PATH}/migrations/ ./migrations
 
-RUN chown root:root grpc-server
+RUN chown root:root bss-office-facade
 
 EXPOSE 50051
 EXPOSE 8080
 EXPOSE 9100
 
-CMD ["./grpc-server"]
+CMD ["./bss-office-facade"]

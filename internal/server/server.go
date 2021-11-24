@@ -4,77 +4,50 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ozonmp/bss-office-facade/internal/metrics"
-	"github.com/ozonmp/bss-office-facade/internal/server/interceptors"
-	"github.com/ozonmp/bss-office-facade/internal/service/office"
-	"net"
+	"github.com/Shopify/sarama"
+	"github.com/golang/protobuf/proto"
+	"github.com/jmoiron/sqlx"
+	"github.com/ozonmp/bss-office-facade/internal/config"
+	"github.com/ozonmp/bss-office-facade/internal/handlers"
+	"github.com/ozonmp/bss-office-facade/internal/kafka"
+	"github.com/ozonmp/bss-office-facade/internal/logger"
+	"github.com/ozonmp/bss-office-facade/internal/model"
+	"github.com/ozonmp/bss-office-facade/internal/repo"
+	pb "github.com/ozonmp/bss-office-facade/pkg/bss-office-facade"
 	"net/http"
 	"os"
 	"os/signal"
 	"sync/atomic"
 	"syscall"
-	"time"
-
-	"github.com/jmoiron/sqlx"
-	"github.com/rs/zerolog/log"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/keepalive"
-	"google.golang.org/grpc/reflection"
-
-	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	grpcrecovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"
-	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
-	grpc_opentracing "github.com/grpc-ecosystem/go-grpc-middleware/tracing/opentracing"
-	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-
-	"github.com/ozonmp/bss-office-facade/internal/api"
-	"github.com/ozonmp/bss-office-facade/internal/config"
-	"github.com/ozonmp/bss-office-facade/internal/repo"
-	pb "github.com/ozonmp/bss-office-facade/pkg/bss-office-facade"
 )
 
-// GrpcServer is gRPC server
-type GrpcServer struct {
-	db        *sqlx.DB
-	batchSize uint
+// ConsumerServer сервер для сервиса-консюмера
+type ConsumerServer struct {
+	db *sqlx.DB
 }
 
-// NewGrpcServer returns gRPC server with supporting of batch listing
-func NewGrpcServer(db *sqlx.DB, batchSize uint) *GrpcServer {
-	return &GrpcServer{
-		db:        db,
-		batchSize: batchSize,
+// NewConsumerServer создаёт новый сервер
+func NewConsumerServer(db *sqlx.DB) *ConsumerServer {
+	return &ConsumerServer{
+		db: db,
 	}
 }
 
-// Start method runs server
-func (s *GrpcServer) Start(cfg *config.Config) error {
-	ctx, cancel := context.WithCancel(context.Background())
+// Start запускает сервер
+func (s *ConsumerServer) Start(ctx context.Context, cfg *config.Config) error {
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	gatewayAddr := fmt.Sprintf("%s:%v", cfg.Rest.Host, cfg.Rest.Port)
-	grpcAddr := fmt.Sprintf("%s:%v", cfg.Grpc.Host, cfg.Grpc.Port)
 	metricsAddr := fmt.Sprintf("%s:%v", cfg.Metrics.Host, cfg.Metrics.Port)
-
-	gatewayServer := createGatewayServer(grpcAddr, gatewayAddr)
-
-	go func() {
-		log.Info().Msgf("Gateway server is running on %s", gatewayAddr)
-		if err := gatewayServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error().Err(err).Msg("Failed running gateway server")
-			cancel()
-		}
-	}()
 
 	metricsServer := createMetricsServer(cfg)
 
 	go func() {
-		log.Info().Msgf("Metrics server is running on %s", metricsAddr)
+		logger.InfoKV(ctx, "Metrics server is running", "addr", metricsAddr)
 		if err := metricsServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error().Err(err).Msg("Failed running metrics server")
+			logger.ErrorKV(ctx, "Failed running metrics server", "err", err)
 			cancel()
 		}
-		metrics.InitMetrics(cfg)
 	}()
 
 	isReady := &atomic.Value{}
@@ -84,58 +57,19 @@ func (s *GrpcServer) Start(cfg *config.Config) error {
 
 	go func() {
 		statusAdrr := fmt.Sprintf("%s:%v", cfg.Status.Host, cfg.Status.Port)
-		log.Info().Msgf("Status server is running on %s", statusAdrr)
+		logger.InfoKV(ctx, "Status server is running", "addr", statusAdrr)
 		if err := statusServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error().Err(err).Msg("Failed running status server")
+			logger.ErrorKV(ctx, "Failed running status server", "err", err)
 		}
 	}()
-
-	l, err := net.Listen("tcp", grpcAddr)
-	if err != nil {
-		return fmt.Errorf("failed to listen: %w", err)
-	}
-	defer l.Close()
-
-	grpcServer := grpc.NewServer(
-		grpc.KeepaliveParams(keepalive.ServerParameters{
-			MaxConnectionIdle: time.Duration(cfg.Grpc.MaxConnectionIdle) * time.Minute,
-			Timeout:           time.Duration(cfg.Grpc.Timeout) * time.Second,
-			MaxConnectionAge:  time.Duration(cfg.Grpc.MaxConnectionAge) * time.Minute,
-			Time:              time.Duration(cfg.Grpc.Timeout) * time.Minute,
-		}),
-		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
-			grpc_ctxtags.UnaryServerInterceptor(),
-			grpc_prometheus.UnaryServerInterceptor,
-			grpc_opentracing.UnaryServerInterceptor(),
-			grpcrecovery.UnaryServerInterceptor(),
-			interceptors.ChangeLogLevelInterceptor(),
-			interceptors.VerboseRequestInterceptor(),
-		)),
-	)
 
 	officeRepo := repo.NewOfficeRepo(s.db)
-	eventRepo := repo.NewEventRepo(s.db)
+	handler := handlers.NewEventHandler(officeRepo)
 
-	pb.RegisterBssOfficeApiServiceServer(grpcServer, api.NewOfficeAPI(office.NewOfficeService(officeRepo, eventRepo, s.db)))
+	err := kafka.StartConsuming(ctx, cfg.Kafka.Brokers, cfg.Kafka.Topic, cfg.Kafka.GroupID, handler.Handle)
 
-	grpc_prometheus.EnableHandlingTimeHistogram()
-	grpc_prometheus.Register(grpcServer)
-
-	go func() {
-		log.Info().Msgf("GRPC Server is listening on: %s", grpcAddr)
-		if err := grpcServer.Serve(l); err != nil {
-			log.Fatal().Err(err).Msg("Failed running gRPC server")
-		}
-	}()
-
-	go func() {
-		time.Sleep(2 * time.Second)
-		isReady.Store(true)
-		log.Info().Msg("The service is ready to accept requests")
-	}()
-
-	if cfg.Project.Debug {
-		reflection.Register(grpcServer)
+	if err != nil {
+		logger.FatalKV(ctx, "Failed starter consumer", "err", err)
 	}
 
 	quit := make(chan os.Signal, 1)
@@ -143,33 +77,37 @@ func (s *GrpcServer) Start(cfg *config.Config) error {
 
 	select {
 	case v := <-quit:
-		log.Info().Msgf("signal.Notify: %v", v)
+		logger.InfoKV(ctx, "signal.Notify", "sig", v)
 	case done := <-ctx.Done():
-		log.Info().Msgf("ctx.Done: %v", done)
+		logger.InfoKV(ctx, "ctx.Done", "sig", done)
 	}
 
 	isReady.Store(false)
 
-	if err := gatewayServer.Shutdown(ctx); err != nil {
-		log.Error().Err(err).Msg("gatewayServer.Shutdown")
-	} else {
-		log.Info().Msg("gatewayServer shut down correctly")
-	}
-
 	if err := statusServer.Shutdown(ctx); err != nil {
-		log.Error().Err(err).Msg("statusServer.Shutdown")
+		logger.ErrorKV(ctx, "statusServer.Shutdown", "err", err)
 	} else {
-		log.Info().Msg("statusServer shut down correctly")
+		logger.InfoKV(ctx, "statusServer shut down correctly")
 	}
 
 	if err := metricsServer.Shutdown(ctx); err != nil {
-		log.Error().Err(err).Msg("metricsServer.Shutdown")
+		logger.ErrorKV(ctx, "metricsServer.Shutdown", "err", err)
 	} else {
-		log.Info().Msg("metricsServer shut down correctly")
+		logger.InfoKV(ctx, "metricsServer shut down correctly")
 	}
 
-	grpcServer.GracefulStop()
-	log.Info().Msgf("grpcServer shut down correctly")
+	return nil
+}
+
+func handleEvent(ctx context.Context, message *sarama.ConsumerMessage) error {
+	var pbEvent pb.OfficeEvent
+	err := proto.Unmarshal(message.Value, &pbEvent)
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%#+v\n", model.ConvertPbToBssOfficeEvent(&pbEvent))
 
 	return nil
 }

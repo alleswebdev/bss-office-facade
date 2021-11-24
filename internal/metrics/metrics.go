@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"github.com/ozonmp/bss-office-facade/internal/config"
-	"github.com/ozonmp/bss-office-facade/internal/model"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -25,22 +24,4 @@ func InitMetrics(cfg *config.Config) {
 		Name:      "cud_total",
 		Help:      "Total of the CUD events",
 	}, []string{"type"})
-}
-
-// IncTotalNotFound - увеличивает значение счетчика ошибок отсутствия объекта
-func IncTotalNotFound() {
-	if totalOfficeNotFound == nil {
-		return
-	}
-
-	totalOfficeNotFound.Inc()
-}
-
-// IncTotalCud - увеличивает значение счетчика событий
-func IncTotalCud(eventType model.EventType) {
-	if totalCud == nil {
-		return
-	}
-
-	totalCud.WithLabelValues(eventType.String()).Inc()
 }

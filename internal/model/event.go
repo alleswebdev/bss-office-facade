@@ -2,16 +2,11 @@ package model
 
 import (
 	"database/sql"
-	"encoding/json"
 	pb "github.com/ozonmp/bss-office-facade/pkg/bss-office-facade"
-	"github.com/pkg/errors"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"time"
 )
 
-// EventType enum for event type
-//go:generate stringer -linecomment -type=EventType
-type EventType uint8
+type EventType string
 
 // EventStatus enum for event status
 type EventStatus uint8
@@ -20,20 +15,9 @@ type EventStatus uint8
 // Updated - событие обновлено
 // Removed - событие удалено
 const (
-	_                        EventType = iota
-	Created                            //created
-	Updated                            //updated
-	Removed                            //removed
-	OfficeNameUpdated                  //office_name_updated
-	OfficeDescriptionUpdated           //office_description_updated
-)
-
-// Deferred - событие ожидает обработки
-// Processed - событие обрабатывается
-const (
-	_ EventStatus = iota
-	Deferred
-	Processed
+	Created = "created"
+	Updated = "updated"
+	Removed = "removed"
 )
 
 // OfficeEvent - office event model
@@ -55,51 +39,28 @@ type OfficePayload struct {
 	Removed     bool   `json:"removed,omitempty"`
 }
 
-// Scan - кастомный сканер для OfficePayload
-func (op *OfficePayload) Scan(src interface{}) (err error) {
-	var payload OfficePayload
-	if src == nil {
-		return nil
+func ConvertPbToBssOfficeEvent(pb *pb.OfficeEvent) *OfficeEvent {
+	officeEvent := &OfficeEvent{
+		ID:       pb.GetId(),
+		OfficeID: pb.GetOfficeId(),
+		Status:   EventStatus(pb.GetStatus()),
+		Type:     EventType(pb.GetType()),
+		Created:  pb.GetCreated().AsTime(),
+		Updated: sql.NullTime{
+			Time: pb.GetUpdated().AsTime(),
+		},
+		Payload: ConvertPbToBssOfficePayload(pb.GetPayload()),
 	}
 
-	switch src.(type) {
-	case string:
-		err = json.Unmarshal([]byte(src.(string)), &payload)
-	case []byte:
-		err = json.Unmarshal(src.([]byte), &payload)
-	default:
-		return errors.New("incompatible type")
-	}
-
-	if err != nil {
-		return err
-	}
-
-	*op = payload
-
-	return nil
+	return officeEvent
 }
 
-func ConvertBssOfficeEventToPb(o *OfficeEvent) *pb.OfficeEvent {
-	pb := &pb.OfficeEvent{
-		Id:       o.ID,
-		OfficeId: o.OfficeID,
-		Status:   uint64(o.Status),
-		Type:     o.Type.String(),
-		Created:  timestamppb.New(o.Created),
-		Updated:  timestamppb.New(o.Updated.Time),
-		Payload:  ConvertBssOfficePayloadToPb(&o.Payload),
+func ConvertPbToBssOfficePayload(pb *pb.OfficePayload) OfficePayload {
+	payload := OfficePayload{
+		ID:          pb.GetId(),
+		Name:        pb.GetName(),
+		Description: pb.GetDescription(),
 	}
 
-	return pb
-}
-
-func ConvertBssOfficePayloadToPb(op *OfficePayload) *pb.OfficePayload {
-	pb := &pb.OfficePayload{
-		Id:          op.ID,
-		Name:        op.Name,
-		Description: op.Description,
-	}
-
-	return pb
+	return payload
 }

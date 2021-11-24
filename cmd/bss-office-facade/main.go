@@ -2,31 +2,23 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"github.com/ozonmp/bss-office-facade/internal/app/metrics"
-	"github.com/ozonmp/bss-office-facade/internal/app/retranslator"
-	"github.com/ozonmp/bss-office-facade/internal/app/sender"
-	"github.com/ozonmp/bss-office-facade/internal/config"
-	"github.com/ozonmp/bss-office-facade/internal/database"
 	"github.com/ozonmp/bss-office-facade/internal/logger"
-	"github.com/ozonmp/bss-office-facade/internal/repo"
+	"github.com/ozonmp/bss-office-facade/internal/metrics"
 	"log"
-	"net/http"
 
 	_ "github.com/jackc/pgx/v4"
 	_ "github.com/jackc/pgx/v4/stdlib"
 	_ "github.com/lib/pq"
 
-	"os"
-	"os/signal"
-	"syscall"
+	"github.com/ozonmp/bss-office-facade/internal/config"
+	"github.com/ozonmp/bss-office-facade/internal/database"
+	"github.com/ozonmp/bss-office-facade/internal/server"
+	"github.com/ozonmp/bss-office-facade/internal/tracer"
 )
 
 func main() {
 	ctx := context.Background()
-
-	sigs := make(chan os.Signal, 1)
 
 	if err := config.ReadConfigYML("config.yml"); err != nil {
 		log.Fatalf("Failed init configuration:%s", err)
@@ -37,6 +29,13 @@ func main() {
 	syncLogger := logger.InitLogger(ctx, &cfg)
 	defer syncLogger()
 
+	logger.InfoKV(ctx, fmt.Sprintf("Starting service: %s", cfg.Project.Name),
+		"version", cfg.Project.Version,
+		"commitHash", cfg.Project.CommitHash,
+		"debug", cfg.Project.Debug,
+		"environment", cfg.Project.Environment,
+	)
+
 	dsn := fmt.Sprintf("host=%v port=%v user=%v password=%v dbname=%v sslmode=%v",
 		cfg.Database.Host,
 		cfg.Database.Port,
@@ -46,28 +45,25 @@ func main() {
 		cfg.Database.SslMode,
 	)
 
+	metrics.InitMetrics(&cfg)
+
 	db, err := database.NewPostgres(ctx, dsn, cfg.Database.Driver)
 	if err != nil {
 		logger.FatalKV(ctx, "Failed init postgres", "err", err)
 	}
 	defer db.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	tracing, err := tracer.NewTracer(ctx, &cfg)
+	if err != nil {
+		logger.FatalKV(ctx, "Failed init tracing", "err", err)
 
-	metricsServer := metrics.CreateMetricsServer(&cfg)
+		return
+	}
+	defer tracing.Close()
 
-	go func(ctx context.Context) {
-		if err := metricsServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.FatalKV(ctx, "Failed running metrics server", "err", err)
-			cancel()
-		}
-	}(ctx)
+	if err = server.NewConsumerServer(db).Start(ctx, &cfg); err != nil {
+		logger.FatalKV(ctx, "Failed creating gRPC server", "err", err)
 
-	metrics.InitMetrics(cfg)
-	retranslator.Start(ctx)
-
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
-	<-sigs
+		return
+	}
 }
