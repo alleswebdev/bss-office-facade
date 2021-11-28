@@ -32,9 +32,6 @@ func (h *eventHandler) Handle(ctx context.Context, message *sarama.ConsumerMessa
 
 	officeEvent := model.ConvertPbToBssOfficeEvent(&pbEvent)
 
-	// в задании требовалось вывести в stdout
-	//fmt.Printf("%#+v\n", officeEvent)
-
 	metrics.IncTotalEvents()
 	metrics.IncTotalCud(officeEvent.Type)
 
