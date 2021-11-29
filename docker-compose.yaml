@@ -1,0 +1,63 @@
+version: "3.9"
+
+services:
+  bss-office-facade:
+    build:
+      network: host
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    logging:
+      driver: 'gelf'
+      options:
+        gelf-address: 'udp://localhost:12201'
+        tag: bss-office-facade
+    networks:
+      - ompnw
+    depends_on:
+      - postgres
+    links:
+      - postgres
+    ports:
+      - 9200:9100 # Metrics prometheus
+      - 8100:8000 # Status prometheus
+      - 40001:40000 # Debug port
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8100/live']
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    volumes:
+      - ./migrations:/root/migrations
+      - ./config.yml:/root/config.yml
+
+  postgres:
+    image: postgres:latest
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-q", "-d", "postgres", "-U", "postgres" ]
+      timeout: 45s
+      interval: 10s
+      retries: 10
+    restart: always
+    logging:
+      driver: 'gelf'
+      options:
+        gelf-address: 'udp://localhost:12201'
+        tag: postgres
+    ports:
+      - 5433:5432
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: bss_office_facade
+      APP_DB_USER: docker
+      APP_DB_PASS: docker
+    networks:
+      - ompnw
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-database.sh:/docker-entrypoint-initdb.d/init-database.sh
+networks:
+  ompnw:
+    driver: bridge

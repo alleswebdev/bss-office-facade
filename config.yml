@@ -1,0 +1,45 @@
+project:
+  name: Bss-office-api Facade
+  debug: false
+  environment: development
+
+metrics:
+  host: 0.0.0.0
+  port: 9300
+  path: /metrics
+  namespace: bss
+  subsystem: office
+
+jaeger:
+  service: "bss-office-facade"
+  host: "127.0.0.1"
+  port: ":6831"
+
+status:
+  host: 0.0.0.0
+  port: 8100
+  livenessPath: /live
+  readinessPath: /ready
+  versionPath: /version
+
+database:
+  host: postgres
+  port: 5433
+  user: docker
+  password: docker
+  name: bss_office_facade
+  sslmode: disable
+  migrations: migrations
+  driver: pgx
+
+kafka:
+  capacity: 512
+  topic: "bss-office-events"
+  groupId: "bss-office-facade"
+  brokers:
+    - "localhost:9095"
+    - "localhost:9096"
+    - "localhost:9097"
+
+telemetry:
+  graylogPath: localhost:12201

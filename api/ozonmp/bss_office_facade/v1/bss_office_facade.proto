@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package ozonmp.bss_office_facade.v1;
+
+import "validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/ozonmp/bss-office-facade/pkg/bss-office-facade;bss_office_facade";
+
+message OfficePayload {
+  uint64 id = 1 [(validate.rules).uint64.gt = 0];
+  string name = 2  [(validate.rules).string = {min_len: 2, max_len: 100}];
+  string description = 3;
+}
+
+message OfficeEvent {
+  uint64 id = 1 [(validate.rules).uint64.gt = 0];
+  uint64 office_id = 2 [(validate.rules).uint64.gt = 0];
+  uint64 status = 3;
+  string type = 4 [(validate.rules).string = {min_len: 2, max_len: 100}];
+  google.protobuf.Timestamp created = 5;
+  google.protobuf.Timestamp updated = 6;
+  OfficePayload payload = 7;
+}
